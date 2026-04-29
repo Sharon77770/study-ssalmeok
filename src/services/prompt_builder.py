@@ -4,6 +4,7 @@ def build_lecture_summary_prompt(text: str) -> str:
 
 아래 강의 전사 내용을 기반으로 다음을 수행해줘.
 
+0. 공지사항 정리
 1. 핵심 개념 정리
 2. 시험에 나올 만한 포인트 정리
 3. 헷갈리기 쉬운 개념 비교

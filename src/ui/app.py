@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QTextEdit,
@@ -33,6 +34,7 @@ from domain.models import ConversionOptions, ConversionResult
 
 class ConvertWorker(QThread):
     log = Signal(str)
+    progress = Signal(int, str)
     done = Signal(object)
     error = Signal(str)
 
@@ -57,6 +59,7 @@ class ConvertWorker(QThread):
                 self.audio_path,
                 options=self.options,
                 logger=self.log.emit,
+                progress_handler=self.progress.emit,
             )
         except Exception as exc:
             self.error.emit(str(exc))
@@ -117,6 +120,14 @@ class StudySsalmeokApp(QWidget):
         self.open_output_button = QPushButton("출력 폴더 열기")
 
 
+        self.progress_label = QLabel("대기 중")
+        self.progress_label.setMinimumWidth(120)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("%p%")
+
+
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
 
@@ -165,6 +176,13 @@ class StudySsalmeokApp(QWidget):
 
 
         root.addLayout(button_row)
+        progress_row = QHBoxLayout()
+        progress_row.addWidget(QLabel("STT 진행률"))
+        progress_row.addWidget(self.progress_bar, 1)
+        progress_row.addWidget(self.progress_label)
+
+
+        root.addLayout(progress_row)
         root.addWidget(QLabel("진행 로그"))
         root.addWidget(self.log_view)
 
@@ -254,12 +272,14 @@ class StudySsalmeokApp(QWidget):
 
 
         self.log_view.clear()
+        self.update_progress(0, "대기 중")
         self.append_log("변환 시작")
         self.set_running(True)
 
 
         self.worker = ConvertWorker(audio_path, options)
         self.worker.log.connect(self.append_log)
+        self.worker.progress.connect(self.update_progress)
         self.worker.done.connect(self.on_done)
         self.worker.error.connect(self.on_error)
         self.worker.start()
@@ -300,6 +320,7 @@ class StudySsalmeokApp(QWidget):
 
     def on_done(self, result: ConversionResult) -> None:
         self.last_output_dir = result.output_dir
+        self.update_progress(100, "완료")
         self.append_log(f"완료: 총 {result.prompt_count}개 프롬프트 생성")
         self.append_log(f"출력 폴더: {result.output_dir}")
         self.set_running(False)
@@ -316,6 +337,7 @@ class StudySsalmeokApp(QWidget):
 
 
     def on_error(self, message: str) -> None:
+        self.progress_label.setText("오류")
         self.append_log(f"오류 발생: {message}")
         self.set_running(False)
         QMessageBox.critical(self, "오류", message)
@@ -327,6 +349,13 @@ class StudySsalmeokApp(QWidget):
     def append_log(self, message: str) -> None:
         self.log_view.append(message)
 
+
+
+
+
+    def update_progress(self, percent: int, message: str) -> None:
+        self.progress_bar.setValue(percent)
+        self.progress_label.setText(message)
 
 
 

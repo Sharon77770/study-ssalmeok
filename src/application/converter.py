@@ -10,6 +10,7 @@ from services.transcriber import transcribe_audio
 
 
 LogHandler = Callable[[str], None]
+ProgressHandler = Callable[[int, str], None]
 
 
 
@@ -19,6 +20,7 @@ def convert_audio_to_prompts(
     audio_path: str | Path,
     options: ConversionOptions | None = None,
     logger: LogHandler | None = None,
+    progress_handler: ProgressHandler | None = None,
 ) -> ConversionResult:
     """Run the full audio-to-prompt conversion pipeline."""
     options = options or ConversionOptions()
@@ -30,6 +32,7 @@ def convert_audio_to_prompts(
 
 
     emit = logger or (lambda message: None)
+    emit_progress = progress_handler or (lambda percent, message: None)
 
 
     emit("STT 진행 중")
@@ -37,6 +40,7 @@ def convert_audio_to_prompts(
         audio_file,
         model_ref=options.model_ref,
         language=options.language,
+        progress_callback=emit_progress,
     )
 
 

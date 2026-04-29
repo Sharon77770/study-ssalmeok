@@ -1,7 +1,9 @@
+from collections.abc import Callable
 from pathlib import Path
 
 
 REQUIRED_MODEL_FILES = ("config.json", "model.bin")
+ProgressHandler = Callable[[int, str], None]
 
 
 
@@ -11,9 +13,12 @@ def transcribe_audio(
     file_path: str | Path,
     model_ref: str | Path,
     language: str = "ko",
+    progress_callback: ProgressHandler | None = None,
 ) -> str:
     """Convert a local audio file into timestamped transcript text."""
     model_ref = resolve_model_ref(model_ref)
+    emit_progress = progress_callback or (lambda percent, message: None)
+    emit_progress(0, "STT 모델 로딩 중")
 
 
     try:
@@ -33,14 +38,17 @@ def transcribe_audio(
     )
 
 
-    segments, _ = model.transcribe(
+    emit_progress(0, "STT 음성 분석 중")
+    segments, info = model.transcribe(
         str(file_path),
         language=language,
         vad_filter=False,
     )
+    duration = get_audio_duration(info)
 
 
     lines = []
+    last_percent = 0
 
 
     for segment in segments:
@@ -53,7 +61,47 @@ def transcribe_audio(
             lines.append(f"[{start} - {end}] {text}")
 
 
+        percent = calculate_progress(segment.end, duration)
+
+
+        if percent > last_percent:
+            emit_progress(percent, f"STT 진행 중 {percent}%")
+            last_percent = percent
+
+
+    emit_progress(100, "STT 완료")
+
+
     return "\n".join(lines)
+
+
+
+
+def get_audio_duration(transcription_info: object) -> float:
+    duration_after_vad = getattr(transcription_info, "duration_after_vad", None)
+    duration = duration_after_vad or getattr(transcription_info, "duration", 0) or 0
+
+
+    try:
+        return max(float(duration), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+
+
+def calculate_progress(position_seconds: float, duration_seconds: float) -> int:
+    if duration_seconds <= 0:
+        return 0
+
+
+    try:
+        position = max(float(position_seconds), 0.0)
+    except (TypeError, ValueError):
+        return 0
+
+
+    return min(int(position / duration_seconds * 100), 99)
 
 
 
